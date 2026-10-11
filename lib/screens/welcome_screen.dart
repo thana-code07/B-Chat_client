@@ -41,7 +41,7 @@ class WelcomeScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Chat Application',
+                  'B-Chat',
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
               ],

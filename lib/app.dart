@@ -5,6 +5,7 @@ import 'data/auth_api.dart';
 import 'data/chat_api.dart';
 import 'data/chat_connection.dart';
 import 'data/session_store.dart';
+import 'navigation/auth_page.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/signed_in_screen.dart';
@@ -100,6 +101,21 @@ class _BChatAppState extends State<BChatApp> {
     });
   }
 
+  void _onDidRemovePage(Page<Object?> page) {
+    if (!mounted || _stack.length < 2) return;
+    if (page.key != ValueKey<_Gate>(_stack.last)) return;
+    _back();
+  }
+
+  AuthMotion _enterMotion(_Gate? from, _Gate to) {
+    if (from == null) return AuthMotion.none;
+    final betweenForms =
+        (from == _Gate.login && to == _Gate.register) ||
+        (from == _Gate.register && to == _Gate.login);
+    if (betweenForms) return AuthMotion.forward;
+    return AuthMotion.rise;
+  }
+
   Future<void> _enter(SessionUser user, String token) async {
     if (!mounted) return;
     setState(() {
@@ -107,7 +123,11 @@ class _BChatAppState extends State<BChatApp> {
       _token = token;
     });
     try {
-      await _chat.connect(apiBaseUrl: apiBaseUrl(), userId: user.id, token: token);
+      await _chat.connect(
+        apiBaseUrl: apiBaseUrl(),
+        userId: user.id,
+        token: token,
+      );
     } catch (_) {
       // The inbox still loads over HTTP. Live updates resume when the socket connects.
     }
@@ -124,7 +144,11 @@ class _BChatAppState extends State<BChatApp> {
     }
   }
 
-  Future<String?> _register(String username, String email, String password) async {
+  Future<String?> _register(
+    String username,
+    String email,
+    String password,
+  ) async {
     try {
       final session = await _api.register(
         username: username,
@@ -193,11 +217,34 @@ class _BChatAppState extends State<BChatApp> {
       );
     }
 
-    return switch (_gate) {
-      _Gate.loading => const Scaffold(
+    if (_gate == _Gate.loading) {
+      return const Scaffold(
         backgroundColor: AppColors.brand,
         body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    return ClipRect(
+      child: NavigatorPopHandler(
+        onPopWithResult: (_) => _back(),
+        child: Navigator(
+          pages: [
+            for (var i = 0; i < _stack.length; i++)
+              AuthPage(
+                key: ValueKey<_Gate>(_stack[i]),
+                motion: _enterMotion(i == 0 ? null : _stack[i - 1], _stack[i]),
+                child: _gatePage(_stack[i]),
+              ),
+          ],
+          onDidRemovePage: _onDidRemovePage,
+        ),
       ),
+    );
+  }
+
+  Widget _gatePage(_Gate gate) {
+    return switch (gate) {
+      _Gate.loading => const SizedBox.shrink(),
       _Gate.welcome => WelcomeScreen(
         onLogin: () => _open(_Gate.login),
         onRegister: () => _open(_Gate.register),

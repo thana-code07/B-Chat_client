@@ -65,7 +65,7 @@ void main() {
     await tester.pumpWidget(BChatApp(sessionStore: MemorySessionStore()));
     await tester.pump();
 
-    expect(find.text('Chat Application'), findsOneWidget);
+    expect(find.text('B-Chat'), findsOneWidget);
     expect(find.text('Login'), findsOneWidget);
     expect(find.text('Register Now'), findsOneWidget);
     expect(find.text('Forgot your Password?'), findsNothing);
@@ -83,6 +83,41 @@ void main() {
     await tester.tap(find.text('Back'));
     await tester.pumpAndSettle();
     expect(find.text('Hello'), findsOneWidget);
+  });
+
+  testWidgets('login and register slide in instead of snapping', (
+    tester,
+  ) async {
+    await tester.pumpWidget(BChatApp(sessionStore: MemorySessionStore()));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Login'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 140));
+    final loginMid = tester.getTopLeft(find.text('Hello'));
+    await tester.pumpAndSettle();
+    final loginSettled = tester.getTopLeft(find.text('Hello'));
+    expect(loginMid.dy, greaterThan(loginSettled.dy + 12));
+
+    await tester.tap(find.text('Register Now'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 140));
+    final registerMid = tester.getTopLeft(find.text('Create Account'));
+    await tester.pumpAndSettle();
+    final registerSettled = tester.getTopLeft(find.text('Create Account'));
+    expect(registerMid.dx, greaterThan(registerSettled.dx + 12));
+
+    await tester.tap(find.text('Back'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    final leaving = tester.getTopLeft(find.text('Create Account'));
+    expect(leaving.dx, greaterThan(registerSettled.dx + 8));
+    await tester.pumpAndSettle();
+    expect(find.text('Hello'), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('B-Chat'), findsOneWidget);
   });
 
   testWidgets('a saved token opens direct messages', (tester) async {

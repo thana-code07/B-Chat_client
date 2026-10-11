@@ -43,6 +43,9 @@ class _ThreadScreenState extends State<ThreadScreen> {
   Timer? _readDebounce;
   var _online = false;
   var _loading = true;
+  var _loadingOlder = false;
+  var _anchoring = false;
+  var _userScrolling = false;
   var _sending = false;
   var _hasMore = false;
   var _page = 1;
@@ -115,8 +118,34 @@ class _ThreadScreenState extends State<ThreadScreen> {
     });
   }
 
+  bool _onScroll(ScrollNotification notification) {
+    if (notification.metrics.axis != Axis.vertical) return false;
+    if (notification is ScrollStartNotification && notification.dragDetails != null) {
+      _userScrolling = true;
+    }
+    if (notification is ScrollEndNotification) {
+      final fromUser = _userScrolling;
+      _userScrolling = false;
+      if (fromUser) _loadOlderIfAtTop(notification.metrics);
+      return false;
+    }
+    if (_loading || _loadingOlder || _anchoring || !_hasMore) return false;
+
+    final dragging = notification is ScrollUpdateNotification && notification.dragDetails != null;
+    final pulledPastTop = notification is OverscrollNotification && notification.overscroll < 0;
+    if (dragging || pulledPastTop) _loadOlderIfAtTop(notification.metrics);
+    return false;
+  }
+
+  void _loadOlderIfAtTop(ScrollMetrics metrics) {
+    if (metrics.pixels > 48) return;
+    _load(older: true);
+  }
+
   Future<void> _load({bool older = false}) async {
+    if (older && (_loadingOlder || _anchoring || !_hasMore)) return;
     final before = older && _scroll.hasClients ? _scroll.position.maxScrollExtent : null;
+    if (older) setState(() => _loadingOlder = true);
     try {
       final page = await widget.api.messages(
         widget.token,
@@ -125,10 +154,12 @@ class _ThreadScreenState extends State<ThreadScreen> {
       );
       if (!mounted) return;
       final chronological = page.messages.reversed.toList();
+      if (older) _anchoring = true;
       setState(() {
         if (older) {
           _history.insertAll(0, chronological);
           _page = page.page;
+          _loadingOlder = false;
         } else {
           _history
             ..clear()
@@ -141,19 +172,27 @@ class _ThreadScreenState extends State<ThreadScreen> {
       });
       if (older && before != null) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!_scroll.hasClients) return;
-          final delta = _scroll.position.maxScrollExtent - before;
-          _scroll.jumpTo(_scroll.position.pixels + delta);
+          if (_scroll.hasClients) {
+            final delta = _scroll.position.maxScrollExtent - before;
+            final next = (_scroll.position.pixels + delta).clamp(0.0, _scroll.position.maxScrollExtent);
+            _scroll.jumpTo(next);
+          }
+          _anchoring = false;
         });
-      } else if (!older) {
-        _scrollToEnd();
-        _scheduleRead();
+      } else {
+        _anchoring = false;
+        if (!older) {
+          _scrollToEnd();
+          _scheduleRead();
+        }
       }
     } on ChatException catch (error) {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = error.message;
+        _loadingOlder = false;
+        _anchoring = false;
+        _error = older ? _error : error.message;
       });
     }
   }
@@ -377,23 +416,39 @@ class _ThreadScreenState extends State<ThreadScreen> {
       );
     }
 
-    return ListView.builder(
-      controller: _scroll,
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      itemCount: _history.length + (_hasMore ? 1 : 0),
-      itemBuilder: (context, index) {
-        if (_hasMore && index == 0) {
-          return TextButton(onPressed: () => _load(older: true), child: const Text('Earlier messages'));
-        }
-        final message = _history[_hasMore ? index - 1 : index];
-        return ChatBubble(
-          message: message.message,
-          time: formatChatTime(message.createdAt),
-          mine: message.sender == widget.selfId,
-          status: message.status,
-        );
-      },
+    return NotificationListener<ScrollNotification>(
+      onNotification: _onScroll,
+      child: ListView.builder(
+        controller: _scroll,
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        itemCount: _history.length + (_loadingOlder ? 1 : 0),
+        itemBuilder: (context, index) {
+          if (_loadingOlder && index == 0) {
+            return const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: Center(
+                child: SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.4,
+                    color: AppColors.chatInk,
+                    semanticsLabel: 'Loading earlier messages',
+                  ),
+                ),
+              ),
+            );
+          }
+          final message = _history[_loadingOlder ? index - 1 : index];
+          return ChatBubble(
+            message: message.message,
+            time: formatChatTime(message.createdAt),
+            mine: message.sender == widget.selfId,
+            status: message.status,
+          );
+        },
+      ),
     );
   }
 }
