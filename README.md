@@ -1,17 +1,47 @@
-# client
+# B-Chat
 
-A new Flutter project.
+A realtime chat app. Sign in, open a conversation, and messages show up on the other side over a websocket, along with online status.
 
-## Getting Started
+Live demo: [https://b-chat-psi.vercel.app](https://b-chat-psi.vercel.app)
 
-This project is a starting point for a Flutter application.
+The welcome screen lists two accounts that already exist on the demo server. Sign in as each one in a separate window:
 
-A few resources to get you started if this is your first Flutter project:
+| Username | Password   |
+| -------- | ---------- |
+| alex     | demo-alex  |
+| sam      | demo-sam   |
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+<p>
+  <img src="docs/welcome.png" width="220" alt="Welcome screen with the demo accounts">
+  <img src="docs/inbox.png" width="220" alt="Inbox showing Sam online">
+  <img src="docs/thread.png" width="220" alt="A conversation with Sam">
+</p>
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Run it
+
+Start the [server](../server/README.md) first. This app talks to `http://localhost:8000` unless you pass another address. The Android emulator uses `http://10.0.2.2:8000`.
+
+```bash
+flutter pub get
+flutter run
+```
+
+Web:
+
+```bash
+flutter run -d chrome
+```
+
+A release web build bakes the API address in at compile time:
+
+```bash
+flutter build web --dart-define=API_BASE_URL=https://your-api.example.com
+```
+
+The site is the `build/web` folder. Deploy that folder on its own. The server's `ALLOWED_ORIGINS` has to be the exact site origin, such as `https://b-chat-psi.vercel.app`.
+
+## Tests
+
+```bash
+flutter test
+```
