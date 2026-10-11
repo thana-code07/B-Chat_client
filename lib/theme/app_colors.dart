@@ -9,6 +9,19 @@ class AppColors {
   static const line = Color(0xFFD5E3EE);
   static const danger = Color(0xFF9B2C2C);
   static const surface = Colors.white;
+  static const inbox = Color(0xFFF6F3F7);
+  static const chatInk = Color(0xFF2C2836);
+  static const chatMuted = Color(0xFF6F6A78);
+  static const avatarFill = Color(0xFFE6E4EA);
+  static const avatarLetter = Color(0xFF4A4458);
+  static const chatAvatar = Color(0xFFE25C5C);
+  static const incoming = Color(0xFFE7E7EA);
+  static const outgoing = Color(0xFFF6C9DA);
+  static const online = Color(0xFF1B7F3A);
+  static const send = Color(0xFF6D4AFF);
+  static const sendDisabled = Color(0xFFD5CCFF);
+  static const deliveredReceipt = Color(0xFF8A8494);
+  static const readReceipt = Color(0xFF1A73E8);
 }
 
 ThemeData buildAppTheme() {

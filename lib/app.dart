@@ -1,14 +1,13 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import 'config/api_config.dart';
 import 'data/auth_api.dart';
+import 'data/chat_api.dart';
 import 'data/chat_connection.dart';
 import 'data/session_store.dart';
-import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
+import 'screens/signed_in_screen.dart';
 import 'screens/welcome_screen.dart';
 import 'theme/app_colors.dart';
 
@@ -20,11 +19,13 @@ class BChatApp extends StatefulWidget {
     this.sessionStore,
     this.authApi,
     this.chatConnection,
+    this.chatApi,
   });
 
   final SessionStore? sessionStore;
   final AuthApi? authApi;
   final ChatConnection? chatConnection;
+  final ChatApi? chatApi;
 
   @override
   State<BChatApp> createState() => _BChatAppState();
@@ -34,27 +35,22 @@ class _BChatAppState extends State<BChatApp> {
   late final SessionStore _store = widget.sessionStore ?? SecureSessionStore();
   late final AuthApi _api = widget.authApi ?? AuthApi();
   late final ChatConnection _chat = widget.chatConnection ?? ChatConnection();
-  late final StreamSubscription<SocketPhase> _phases;
+  late final ChatApi _chatApi = widget.chatApi ?? ChatApi();
 
   _Gate _gate = _Gate.loading;
   final List<_Gate> _stack = [_Gate.welcome];
   SessionUser? _user;
-  SocketPhase _phase = SocketPhase.offline;
+  String? _token;
   var _loggingOut = false;
 
   @override
   void initState() {
     super.initState();
-    _phases = _chat.phases.listen((phase) {
-      if (!mounted) return;
-      setState(() => _phase = phase);
-    });
     _restore();
   }
 
   @override
   void dispose() {
-    _phases.cancel();
     _chat.dispose();
     super.dispose();
   }
@@ -78,11 +74,11 @@ class _BChatAppState extends State<BChatApp> {
     if (!mounted) return;
     setState(() {
       _user = null;
+      _token = null;
       _stack
         ..clear()
         ..add(_Gate.welcome);
       _gate = _Gate.welcome;
-      _phase = SocketPhase.offline;
     });
   }
 
@@ -108,13 +104,12 @@ class _BChatAppState extends State<BChatApp> {
     if (!mounted) return;
     setState(() {
       _user = user;
-      _phase = SocketPhase.connecting;
+      _token = token;
     });
     try {
       await _chat.connect(apiBaseUrl: apiBaseUrl(), userId: user.id, token: token);
     } catch (_) {
-      if (!mounted) return;
-      setState(() => _phase = SocketPhase.offline);
+      // The inbox still loads over HTTP. Live updates resume when the socket connects.
     }
   }
 
@@ -186,10 +181,13 @@ class _BChatAppState extends State<BChatApp> {
 
   Widget _home() {
     final user = _user;
-    if (user != null) {
-      return HomeScreen(
-        username: user.username,
-        phase: _phase,
+    final token = _token;
+    if (user != null && token != null) {
+      return SignedInScreen(
+        user: user,
+        token: token,
+        api: _chatApi,
+        chat: _chat,
         loggingOut: _loggingOut,
         onLogout: _logout,
       );
