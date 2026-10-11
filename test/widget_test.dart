@@ -29,7 +29,11 @@ class _EmptyThreadApi extends ChatApi {
   _EmptyThreadApi() : super(dio: Dio(BaseOptions(baseUrl: 'http://localhost')));
 
   @override
-  Future<MessagePage> messages(String token, String userId, {int page = 1}) async {
+  Future<MessagePage> messages(
+    String token,
+    String userId, {
+    int page = 1,
+  }) async {
     return const MessagePage(messages: [], page: 1, totalPages: 0);
   }
 }
@@ -120,7 +124,9 @@ void main() {
     expect(store.token, isNull);
   });
 
-  testWidgets('online bar keeps offline conversations in the chat list only', (tester) async {
+  testWidgets('online bar keeps offline conversations in the chat list only', (
+    tester,
+  ) async {
     final ada = Conversation(
       chatroomId: 'room-ada',
       user: const ChatUser(id: 'ada', username: 'ada'),
@@ -164,18 +170,104 @@ void main() {
     expect(find.text('bob'), findsOneWidget);
     expect(find.text('Chat Room'), findsOneWidget);
     expect(find.text('hello'), findsOneWidget);
+    expect(find.text('1'), findsNothing);
   });
 
-  testWidgets('message checks follow sent, delivered, and read', (tester) async {
+  testWidgets('chat list shows a green unread count', (tester) async {
+    final rajat = Conversation(
+      chatroomId: 'room-rajat',
+      user: const ChatUser(id: 'rajat', username: 'rajat'),
+      isOnline: true,
+      unreadCount: 1,
+      lastMessage: LastMessage(
+        message: 'test 1',
+        createdAt: DateTime.utc(2026, 7, 15, 1, 8),
+        status: 'delivered',
+        sender: 'rajat',
+      ),
+    );
+    final john = Conversation(
+      chatroomId: 'room-john',
+      user: const ChatUser(id: 'john', username: 'john'),
+      isOnline: true,
+      lastMessage: LastMessage(
+        message: 'seen',
+        createdAt: DateTime.utc(2026, 7, 15, 1, 5),
+        status: 'read',
+        sender: 'john',
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: InboxScreen(
+          conversations: [rajat, john],
+          loading: false,
+          error: null,
+          loggingOut: false,
+          onLogout: () {},
+          onNewChat: () {},
+          onOpen: (_) {},
+          onRetry: () {},
+        ),
+      ),
+    );
+
+    expect(find.text('1'), findsOneWidget);
+    expect(
+      find.bySemanticsLabel(RegExp(r'^rajat, test 1, .+, 1 unread message$')),
+      findsOneWidget,
+    );
+    expect(find.bySemanticsLabel(RegExp(r'^john, seen, .+$')), findsOneWidget);
+
+    final badge = tester.widget<Container>(
+      find.descendant(
+        of: find.byKey(const ValueKey('unread-rajat')),
+        matching: find.byType(Container),
+      ),
+    );
+    expect((badge.decoration as BoxDecoration).color, AppColors.unread);
+    final count = tester.widget<Text>(
+      find.descendant(
+        of: find.byKey(const ValueKey('unread-rajat')),
+        matching: find.text('1'),
+      ),
+    );
+    expect(count.style?.color, Colors.white);
+  });
+
+  testWidgets('message checks follow sent, delivered, and read', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
           body: Column(
             children: [
-              ChatBubble(message: 'one', time: 'Jul 15, 3:08 AM', mine: true, status: 'sent'),
-              ChatBubble(message: 'two', time: 'Jul 15, 3:09 AM', mine: true, status: 'delivered'),
-              ChatBubble(message: 'three', time: 'Jul 15, 3:10 AM', mine: true, status: 'read'),
-              ChatBubble(message: 'theirs', time: 'Jul 15, 3:11 AM', mine: false, status: 'read'),
+              ChatBubble(
+                message: 'one',
+                time: 'Jul 15, 3:08 AM',
+                mine: true,
+                status: 'sent',
+              ),
+              ChatBubble(
+                message: 'two',
+                time: 'Jul 15, 3:09 AM',
+                mine: true,
+                status: 'delivered',
+              ),
+              ChatBubble(
+                message: 'three',
+                time: 'Jul 15, 3:10 AM',
+                mine: true,
+                status: 'read',
+              ),
+              ChatBubble(
+                message: 'theirs',
+                time: 'Jul 15, 3:11 AM',
+                mine: false,
+                status: 'read',
+              ),
             ],
           ),
         ),
@@ -190,7 +282,9 @@ void main() {
     expect(icons[1].color, AppColors.readReceipt);
   });
 
-  testWidgets('an empty chat shows the prompt and online status', (tester) async {
+  testWidgets('an empty chat shows the prompt and online status', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         home: ThreadScreen(
@@ -213,7 +307,10 @@ void main() {
     expect(find.text('rajat'), findsOneWidget);
     expect(find.text('Online'), findsOneWidget);
     expect(find.text('No messages yet.'), findsOneWidget);
-    expect(find.text('Send a message to start the conversation!'), findsOneWidget);
+    expect(
+      find.text('Send a message to start the conversation!'),
+      findsOneWidget,
+    );
     expect(find.text('Type a message'), findsOneWidget);
   });
 
@@ -235,7 +332,9 @@ void main() {
     expect(find.text('Forgot your Password?'), findsNothing);
   });
 
-  testWidgets('register rejects a malformed email before calling the server', (tester) async {
+  testWidgets('register rejects a malformed email before calling the server', (
+    tester,
+  ) async {
     var calls = 0;
     await tester.pumpWidget(
       MaterialApp(

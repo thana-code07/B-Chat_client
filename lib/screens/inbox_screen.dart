@@ -29,7 +29,9 @@ class InboxScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final online = conversations.where((conversation) => conversation.isOnline).toList();
+    final online = conversations
+        .where((conversation) => conversation.isOnline)
+        .toList();
 
     return Scaffold(
       backgroundColor: AppColors.inbox,
@@ -54,7 +56,10 @@ class InboxScreen extends StatelessWidget {
                   IconButton(
                     tooltip: 'New chat',
                     onPressed: onNewChat,
-                    icon: const Icon(Icons.person_outline, color: AppColors.chatInk),
+                    icon: const Icon(
+                      Icons.person_outline,
+                      color: AppColors.chatInk,
+                    ),
                   ),
                   IconButton(
                     tooltip: 'Logout',
@@ -97,7 +102,10 @@ class InboxScreen extends StatelessWidget {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(color: AppColors.chatMuted, fontSize: 12),
+                                style: const TextStyle(
+                                  color: AppColors.chatMuted,
+                                  fontSize: 12,
+                                ),
                               ),
                             ],
                           ),
@@ -112,7 +120,11 @@ class InboxScreen extends StatelessWidget {
               child: Text(
                 'Chat Room',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.chatMuted, fontSize: 16, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  color: AppColors.chatMuted,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
             Expanded(child: _body()),
@@ -124,7 +136,9 @@ class InboxScreen extends StatelessWidget {
 
   Widget _body() {
     if (loading && conversations.isEmpty) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.chatInk));
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.chatInk),
+      );
     }
     if (error != null && conversations.isEmpty) {
       return Center(
@@ -133,7 +147,11 @@ class InboxScreen extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(error!, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.danger)),
+              Text(
+                error!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppColors.danger),
+              ),
               const SizedBox(height: 12),
               TextButton(onPressed: onRetry, child: const Text('Try again')),
             ],
@@ -143,7 +161,10 @@ class InboxScreen extends StatelessWidget {
     }
     if (conversations.isEmpty) {
       return const Center(
-        child: Text('No conversations yet', style: TextStyle(color: AppColors.chatMuted, fontSize: 16)),
+        child: Text(
+          'No conversations yet',
+          style: TextStyle(color: AppColors.chatMuted, fontSize: 16),
+        ),
       );
     }
 
@@ -153,15 +174,23 @@ class InboxScreen extends StatelessWidget {
       itemBuilder: (context, index) {
         final conversation = conversations[index];
         final time = formatChatTime(conversation.lastMessage.createdAt);
+        final unread = conversation.unreadCount;
+        final unreadLabel = unread == 1
+            ? ', 1 unread message'
+            : unread > 1
+            ? ', $unread unread messages'
+            : '';
         return Semantics(
           button: true,
-          label: '${conversation.user.username}, ${conversation.lastMessage.message}, $time',
+          label:
+              '${conversation.user.username}, ${conversation.lastMessage.message}, $time$unreadLabel',
           excludeSemantics: true,
           child: InkWell(
             onTap: () => onOpen(conversation),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   LetterAvatar(
                     username: conversation.user.username,
@@ -174,33 +203,48 @@ class InboxScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                conversation.user.username,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: AppColors.chatInk,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(time, style: const TextStyle(color: AppColors.chatMuted, fontSize: 12)),
-                          ],
+                        Text(
+                          conversation.user.username,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.chatInk,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           conversation.lastMessage.message,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: AppColors.chatMuted, fontSize: 14),
+                          style: const TextStyle(
+                            color: AppColors.chatMuted,
+                            fontSize: 14,
+                          ),
                         ),
                       ],
                     ),
+                  ),
+                  const SizedBox(width: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        time,
+                        style: const TextStyle(
+                          color: AppColors.chatMuted,
+                          fontSize: 12,
+                        ),
+                      ),
+                      if (unread > 0) ...[
+                        const SizedBox(height: 6),
+                        _UnreadBadge(
+                          key: ValueKey('unread-${conversation.user.id}'),
+                          count: unread,
+                        ),
+                      ],
+                    ],
                   ),
                 ],
               ),
@@ -208,6 +252,38 @@ class InboxScreen extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _UnreadBadge extends StatelessWidget {
+  const _UnreadBadge({super.key, required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = count > 99 ? '99+' : '$count';
+    final wide = label.length > 1;
+    return Container(
+      height: 22,
+      width: wide ? null : 22,
+      constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+      padding: EdgeInsets.symmetric(horizontal: wide ? 6 : 0),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: AppColors.unread,
+        borderRadius: BorderRadius.circular(11),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          height: 1,
+        ),
+      ),
     );
   }
 }

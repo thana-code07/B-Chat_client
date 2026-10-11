@@ -14,7 +14,10 @@ class ChatUser {
   final String username;
 
   factory ChatUser.fromJson(Map<String, dynamic> json) {
-    return ChatUser(id: json['id'] as String, username: json['username'] as String);
+    return ChatUser(
+      id: json['id'] as String,
+      username: json['username'] as String,
+    );
   }
 }
 
@@ -93,34 +96,49 @@ class Conversation {
     required this.user,
     required this.isOnline,
     required this.lastMessage,
+    this.unreadCount = 0,
   });
 
   final String chatroomId;
   final ChatUser user;
   final bool isOnline;
   final LastMessage lastMessage;
+  final int unreadCount;
 
   factory Conversation.fromJson(Map<String, dynamic> json) {
+    final unread = json['unreadCount'];
     return Conversation(
       chatroomId: json['chatroomId'] as String,
       user: ChatUser.fromJson(Map<String, dynamic>.from(json['user'] as Map)),
       isOnline: json['isOnline'] == true,
-      lastMessage: LastMessage.fromJson(Map<String, dynamic>.from(json['lastMessage'] as Map)),
+      lastMessage: LastMessage.fromJson(
+        Map<String, dynamic>.from(json['lastMessage'] as Map),
+      ),
+      unreadCount: unread is num ? unread.toInt() : 0,
     );
   }
 
-  Conversation copyWith({bool? isOnline, LastMessage? lastMessage}) {
+  Conversation copyWith({
+    bool? isOnline,
+    LastMessage? lastMessage,
+    int? unreadCount,
+  }) {
     return Conversation(
       chatroomId: chatroomId,
       user: user,
       isOnline: isOnline ?? this.isOnline,
       lastMessage: lastMessage ?? this.lastMessage,
+      unreadCount: unreadCount ?? this.unreadCount,
     );
   }
 }
 
 class OpenChat {
-  const OpenChat({required this.chatroomId, required this.user, required this.isOnline});
+  const OpenChat({
+    required this.chatroomId,
+    required this.user,
+    required this.isOnline,
+  });
 
   final String chatroomId;
   final ChatUser user;
@@ -128,7 +146,11 @@ class OpenChat {
 }
 
 class MessagePage {
-  const MessagePage({required this.messages, required this.page, required this.totalPages});
+  const MessagePage({
+    required this.messages,
+    required this.page,
+    required this.totalPages,
+  });
 
   final List<ThreadMessage> messages;
   final int page;
@@ -156,7 +178,10 @@ class ChatApi {
     );
     final body = Map<String, dynamic>.from(response.data as Map);
     return (body['conversations'] as List)
-        .map((item) => Conversation.fromJson(Map<String, dynamic>.from(item as Map)))
+        .map(
+          (item) =>
+              Conversation.fromJson(Map<String, dynamic>.from(item as Map)),
+        )
         .toList();
   }
 
@@ -170,13 +195,16 @@ class ChatApi {
     );
     final body = Map<String, dynamic>.from(response.data as Map);
     return (body['users'] as List)
-        .map((item) => ChatUser.fromJson(Map<String, dynamic>.from(item as Map)))
+        .map(
+          (item) => ChatUser.fromJson(Map<String, dynamic>.from(item as Map)),
+        )
         .toList();
   }
 
   Future<OpenChat> openConversation(String token, String userId) async {
     final response = await _send(
-      () => _dio.get('/api/conversations/with/$userId', options: _bearer(token)),
+      () =>
+          _dio.get('/api/conversations/with/$userId', options: _bearer(token)),
     );
     final body = Map<String, dynamic>.from(response.data as Map);
     return OpenChat(
@@ -186,11 +214,15 @@ class ChatApi {
     );
   }
 
-  Future<MessagePage> messages(String token, String userId, {int page = 1}) async {
+  Future<MessagePage> messages(
+    String token,
+    String userId, {
+    int page = 1,
+  }) async {
     final response = await _send(
       () => _dio.get(
         '/api/conversations/with/$userId/messages',
-        queryParameters: {'page': page, 'pageSize': 50},
+        queryParameters: {'page': page, 'pageSize': 20},
         options: _bearer(token),
       ),
     );
@@ -198,7 +230,10 @@ class ChatApi {
     final pagination = Map<String, dynamic>.from(body['pagination'] as Map);
     return MessagePage(
       messages: (body['data'] as List)
-          .map((item) => ThreadMessage.fromJson(Map<String, dynamic>.from(item as Map)))
+          .map(
+            (item) =>
+                ThreadMessage.fromJson(Map<String, dynamic>.from(item as Map)),
+          )
           .toList(),
       page: (pagination['page'] as num).toInt(),
       totalPages: (pagination['totalPages'] as num).toInt(),
@@ -225,14 +260,18 @@ class ChatApi {
       ),
     );
     final body = Map<String, dynamic>.from(response.data as Map);
-    return ThreadMessage.fromJson(Map<String, dynamic>.from(body['message'] as Map));
+    return ThreadMessage.fromJson(
+      Map<String, dynamic>.from(body['message'] as Map),
+    );
   }
 
   Options _bearer(String token) {
     return Options(headers: {'Authorization': 'Bearer $token'});
   }
 
-  Future<Response<dynamic>> _send(Future<Response<dynamic>> Function() request) async {
+  Future<Response<dynamic>> _send(
+    Future<Response<dynamic>> Function() request,
+  ) async {
     try {
       return await request();
     } on DioException catch (error) {
@@ -244,7 +283,9 @@ class ChatApi {
     final data = error.response?.data;
     if (data is Map) {
       final body = data['error'];
-      if (body is Map && body['message'] is String && (body['message'] as String).isNotEmpty) {
+      if (body is Map &&
+          body['message'] is String &&
+          (body['message'] as String).isNotEmpty) {
         return body['message'] as String;
       }
     }

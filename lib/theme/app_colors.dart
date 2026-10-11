@@ -18,6 +18,7 @@ class AppColors {
   static const incoming = Color(0xFFE7E7EA);
   static const outgoing = Color(0xFFF6C9DA);
   static const online = Color(0xFF1B7F3A);
+  static const unread = Color(0xFF3DDC84);
   static const send = Color(0xFF6D4AFF);
   static const sendDisabled = Color(0xFFD5CCFF);
   static const deliveredReceipt = Color(0xFF8A8494);
@@ -80,7 +81,9 @@ ThemeData buildAppTheme() {
       style: ButtonStyle(
         foregroundColor: WidgetStatePropertyAll(AppColors.button),
         minimumSize: WidgetStatePropertyAll(Size(0, 48)),
-        side: WidgetStatePropertyAll(BorderSide(color: AppColors.button, width: 1.5)),
+        side: WidgetStatePropertyAll(
+          BorderSide(color: AppColors.button, width: 1.5),
+        ),
         shape: WidgetStatePropertyAll(shape),
         textStyle: WidgetStatePropertyAll(label),
       ),
@@ -88,7 +91,9 @@ ThemeData buildAppTheme() {
     textButtonTheme: const TextButtonThemeData(
       style: ButtonStyle(
         foregroundColor: WidgetStatePropertyAll(AppColors.link),
-        textStyle: WidgetStatePropertyAll(TextStyle(fontWeight: FontWeight.w600)),
+        textStyle: WidgetStatePropertyAll(
+          TextStyle(fontWeight: FontWeight.w600),
+        ),
       ),
     ),
   );

@@ -51,6 +51,8 @@ class _SignedInScreenState extends State<SignedInScreen> {
   var _loadGen = 0;
   String? _error;
   List<Conversation> _conversations = const [];
+  final Set<String> _countedMessageIds = {};
+  Future<void> _reads = Future<void>.value();
 
   @override
   void initState() {
@@ -72,8 +74,14 @@ class _SignedInScreenState extends State<SignedInScreen> {
     try {
       final conversations = await widget.api.conversations(widget.token);
       if (!mounted || gen != _loadGen) return;
+      final openId = _stack.last.chat?.user.id;
       setState(() {
-        _conversations = conversations;
+        _conversations = [
+          for (final conversation in conversations)
+            conversation.user.id == openId
+                ? conversation.copyWith(unreadCount: 0)
+                : conversation,
+        ];
         _loading = false;
         _error = null;
       });
@@ -88,7 +96,9 @@ class _SignedInScreenState extends State<SignedInScreen> {
   }
 
   void _watch() {
-    final ids = _conversations.map((conversation) => conversation.user.id).toSet();
+    final ids = _conversations
+        .map((conversation) => conversation.user.id)
+        .toSet();
     final open = _stack.last.chat;
     if (open != null) ids.add(open.user.id);
     widget.chat.watchPresence(ids.take(50).toList());
@@ -98,7 +108,15 @@ class _SignedInScreenState extends State<SignedInScreen> {
     final me = widget.user.id;
     if (message.sender != me && message.receiver != me) return;
     final partnerId = message.sender == me ? message.receiver : message.sender;
-    final index = _conversations.indexWhere((conversation) => conversation.user.id == partnerId);
+    final fresh = _countedMessageIds.add(message.messageId);
+    final viewing = _stack.last.chat?.user.id == partnerId;
+    final incoming = message.sender == partnerId && message.status != 'read';
+    if (viewing && incoming && fresh) {
+      _reads = widget.chat.markRead(partnerId);
+    }
+    final index = _conversations.indexWhere(
+      (conversation) => conversation.user.id == partnerId,
+    );
     if (index < 0) {
       _load();
       return;
@@ -111,11 +129,20 @@ class _SignedInScreenState extends State<SignedInScreen> {
         status: message.status,
         sender: message.sender,
       ),
+      unreadCount: !fresh
+          ? current.unreadCount
+          : viewing
+          ? 0
+          : incoming
+          ? current.unreadCount + 1
+          : current.unreadCount,
     );
     setState(() {
       _conversations = [
         updated,
-        ..._conversations.where((conversation) => conversation.user.id != partnerId),
+        ..._conversations.where(
+          (conversation) => conversation.user.id != partnerId,
+        ),
       ];
     });
   }
@@ -134,6 +161,12 @@ class _SignedInScreenState extends State<SignedInScreen> {
 
   void _openConversation(Conversation conversation) {
     setState(() {
+      _conversations = [
+        for (final item in _conversations)
+          item.user.id == conversation.user.id
+              ? item.copyWith(unreadCount: 0)
+              : item,
+      ];
       _stack.add(
         _Dest.thread(
           OpenChat(
@@ -145,6 +178,7 @@ class _SignedInScreenState extends State<SignedInScreen> {
       );
     });
     _watch();
+    _reads = widget.chat.markRead(conversation.user.id);
   }
 
   Future<void> _openUser(ChatUser user) async {
@@ -152,16 +186,29 @@ class _SignedInScreenState extends State<SignedInScreen> {
     if (!mounted) return;
     setState(() {
       if (_stack.last.kind == _Kind.search) _stack.removeLast();
+      _conversations = [
+        for (final item in _conversations)
+          item.user.id == user.id ? item.copyWith(unreadCount: 0) : item,
+      ];
       _stack.add(_Dest.thread(open));
     });
     _watch();
+    _reads = widget.chat.markRead(user.id);
   }
 
   void _back() {
     if (_stack.length <= 1) return;
+    final leftThread = _stack.last.kind == _Kind.thread;
     setState(() => _stack.removeLast());
     _watch();
-    _load();
+    if (!leftThread) {
+      _load();
+      return;
+    }
+    final reads = _reads;
+    reads.whenComplete(() {
+      if (mounted) _load();
+    });
   }
 
   @override
