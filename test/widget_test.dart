@@ -70,6 +70,10 @@ void main() {
     expect(find.text('B-Chat'), findsOneWidget);
     expect(find.text('Login'), findsOneWidget);
     expect(find.text('Register Now'), findsOneWidget);
+    expect(find.text('alex'), findsOneWidget);
+    expect(find.text('demo-alex'), findsOneWidget);
+    expect(find.text('sam'), findsOneWidget);
+    expect(find.text('demo-sam'), findsOneWidget);
     expect(find.text('Forgot your Password?'), findsNothing);
 
     await tester.tap(find.widgetWithText(FilledButton, 'Login'));

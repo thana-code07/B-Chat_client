@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../demo/demo_accounts.dart';
 import '../theme/app_colors.dart';
 
 class WelcomeScreen extends StatelessWidget {
@@ -56,20 +57,43 @@ class WelcomeScreen extends StatelessWidget {
               top: false,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: onLogin,
-                        child: const Text('Login'),
+                    const Text(
+                      'Demo accounts',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.muted,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: onRegister,
-                        child: const FittedBox(child: Text('Register Now')),
-                      ),
+                    const SizedBox(height: 8),
+                    const _DemoHeader(),
+                    for (final account in demoAccounts)
+                      _DemoAccountRow(account: account),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Sign in as each account in two windows to chat.',
+                      style: TextStyle(fontSize: 13, color: AppColors.muted),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: onLogin,
+                            child: const Text('Login'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: onRegister,
+                            child: const FittedBox(child: Text('Register Now')),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -77,6 +101,53 @@ class WelcomeScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+const _caption = TextStyle(fontSize: 12, color: AppColors.muted);
+const _value = TextStyle(
+  fontSize: 16,
+  fontWeight: FontWeight.w600,
+  color: AppColors.ink,
+);
+
+class _DemoHeader extends StatelessWidget {
+  const _DemoHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Row(
+      children: [
+        Expanded(child: Text('Username', style: _caption)),
+        Expanded(child: Text('Password', style: _caption)),
+      ],
+    );
+  }
+}
+
+class _DemoAccountRow extends StatelessWidget {
+  const _DemoAccountRow({required this.account});
+
+  final DemoAccount account;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: '${account.username}, password ${account.password}',
+      child: Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Row(
+          children: [
+            Expanded(
+              child: SelectableText(account.username, style: _value),
+            ),
+            Expanded(
+              child: SelectableText(account.password, style: _value),
+            ),
+          ],
+        ),
       ),
     );
   }
