@@ -86,7 +86,8 @@ class _NewChatScreenState extends State<NewChatScreen> {
       await widget.onOpen(user);
     } on ChatException catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error.message)));
     } finally {
       if (mounted) setState(() => _opening = false);
     }
@@ -109,7 +110,11 @@ class _NewChatScreenState extends State<NewChatScreen> {
         titleSpacing: 0,
         title: const Text(
           'New Chat',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: AppColors.chatInk),
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: AppColors.chatInk,
+          ),
         ),
       ),
       body: Column(
@@ -127,8 +132,13 @@ class _NewChatScreenState extends State<NewChatScreen> {
                 filled: true,
                 fillColor: AppColors.surface,
                 isDense: true,
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(8))),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 14,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(8)),
+                ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.all(Radius.circular(8)),
                   borderSide: BorderSide(color: AppColors.line),
@@ -152,13 +162,20 @@ class _NewChatScreenState extends State<NewChatScreen> {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.danger)),
+          child: Text(
+            _error!,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: AppColors.danger),
+          ),
         ),
       );
     }
     if (_searched && _results.isEmpty && !_searching) {
       return const Center(
-        child: Text('No users found', style: TextStyle(color: AppColors.chatMuted, fontSize: 16)),
+        child: Text(
+          'No users found',
+          style: TextStyle(color: AppColors.chatMuted, fontSize: 16),
+        ),
       );
     }
     return ListView.builder(
@@ -166,7 +183,10 @@ class _NewChatScreenState extends State<NewChatScreen> {
       itemBuilder: (context, index) {
         final user = _results[index];
         return ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 4,
+          ),
           leading: LetterAvatar(
             username: user.username,
             background: AppColors.avatarFill,
@@ -175,7 +195,10 @@ class _NewChatScreenState extends State<NewChatScreen> {
           ),
           title: Text(
             user.username,
-            style: const TextStyle(color: AppColors.chatInk, fontWeight: FontWeight.w600),
+            style: const TextStyle(
+              color: AppColors.chatInk,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           onTap: _opening ? null : () => _open(user),
         );

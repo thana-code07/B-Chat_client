@@ -14,7 +14,8 @@ class RegisterScreen extends StatefulWidget {
 
   final VoidCallback onBack;
   final VoidCallback onLogin;
-  final Future<String?> Function(String username, String email, String password) onSubmit;
+  final Future<String?> Function(String username, String email, String password)
+  onSubmit;
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
@@ -43,7 +44,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     setState(() => _submitting = true);
-    final message = await widget.onSubmit(_username.text, _email.text, _password.text);
+    final message = await widget.onSubmit(
+      _username.text,
+      _email.text,
+      _password.text,
+    );
     if (!mounted) return;
     setState(() {
       _submitting = false;
@@ -60,7 +65,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
           children: [
-            Text('Create Account', style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              'Create Account',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             const SizedBox(height: 32),
             TextFormField(
               controller: _username,
@@ -90,7 +98,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 suffixIcon: IconButton(
                   tooltip: _obscure ? 'Show password' : 'Hide password',
                   onPressed: () => setState(() => _obscure = !_obscure),
-                  icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                  icon: Icon(
+                    _obscure
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
+                  ),
                 ),
               ),
               validator: (value) => validatePassword(value ?? ''),
@@ -99,7 +111,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const SizedBox(height: 16),
               Semantics(
                 liveRegion: true,
-                child: Text(_error!, style: const TextStyle(color: AppColors.danger)),
+                child: Text(
+                  _error!,
+                  style: const TextStyle(color: AppColors.danger),
+                ),
               ),
             ],
             const SizedBox(height: 32),
@@ -109,7 +124,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     )
                   : const Text('Register Now'),
             ),

@@ -84,7 +84,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 suffixIcon: IconButton(
                   tooltip: _obscure ? 'Show password' : 'Hide password',
                   onPressed: () => setState(() => _obscure = !_obscure),
-                  icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                  icon: Icon(
+                    _obscure
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
+                  ),
                 ),
               ),
               validator: (value) => validatePassword(value ?? ''),
@@ -106,7 +110,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     )
                   : const Text('Login'),
             ),

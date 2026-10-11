@@ -48,7 +48,8 @@ class _ThreadScreenState extends State<ThreadScreen> {
   var _userScrolling = false;
   var _sending = false;
   var _hasMore = false;
-  var _page = 1;
+  var _loadGen = 0;
+  String? _nextCursor;
   String? _error;
   final List<ThreadMessage> _history = [];
 
@@ -56,9 +57,6 @@ class _ThreadScreenState extends State<ThreadScreen> {
   void initState() {
     super.initState();
     _online = widget.peer.isOnline;
-    _composer.addListener(() {
-      if (mounted) setState(() {});
-    });
     _messages = widget.chat.messages.listen(_onMessage);
     _statuses = widget.chat.statuses.listen(_onStatus);
     _presence = widget.chat.presence.listen((update) {
@@ -101,14 +99,21 @@ class _ThreadScreenState extends State<ThreadScreen> {
 
   void _onStatus(ThreadMessage message) {
     if (!_forThisChat(message)) return;
-    final index = _history.indexWhere((item) => item.messageId == message.messageId);
+    final index = _history.indexWhere(
+      (item) => item.messageId == message.messageId,
+    );
     if (index < 0 || !mounted) return;
-    setState(() => _history[index] = _history[index].copyWith(status: message.status));
+    if (!statusMovesForward(_history[index].status, message.status)) return;
+    setState(
+      () => _history[index] = _history[index].copyWith(status: message.status),
+    );
   }
 
   void _upsert(ThreadMessage message) {
     if (!mounted) return;
-    final index = _history.indexWhere((item) => item.messageId == message.messageId);
+    final index = _history.indexWhere(
+      (item) => item.messageId == message.messageId,
+    );
     setState(() {
       if (index >= 0) {
         _history[index] = message;
@@ -120,7 +125,8 @@ class _ThreadScreenState extends State<ThreadScreen> {
 
   bool _onScroll(ScrollNotification notification) {
     if (notification.metrics.axis != Axis.vertical) return false;
-    if (notification is ScrollStartNotification && notification.dragDetails != null) {
+    if (notification is ScrollStartNotification &&
+        notification.dragDetails != null) {
       _userScrolling = true;
     }
     if (notification is ScrollEndNotification) {
@@ -131,8 +137,11 @@ class _ThreadScreenState extends State<ThreadScreen> {
     }
     if (_loading || _loadingOlder || _anchoring || !_hasMore) return false;
 
-    final dragging = notification is ScrollUpdateNotification && notification.dragDetails != null;
-    final pulledPastTop = notification is OverscrollNotification && notification.overscroll < 0;
+    final dragging =
+        notification is ScrollUpdateNotification &&
+        notification.dragDetails != null;
+    final pulledPastTop =
+        notification is OverscrollNotification && notification.overscroll < 0;
     if (dragging || pulledPastTop) _loadOlderIfAtTop(notification.metrics);
     return false;
   }
@@ -142,39 +151,61 @@ class _ThreadScreenState extends State<ThreadScreen> {
     _load(older: true);
   }
 
+  List<ThreadMessage> _merge(List<ThreadMessage> incoming) {
+    final merged = <String, ThreadMessage>{
+      for (final item in _history) item.messageId: item,
+    };
+    for (final item in incoming) {
+      final current = merged[item.messageId];
+      if (current != null && !statusMovesForward(current.status, item.status)) {
+        merged[item.messageId] = item.copyWith(status: current.status);
+      } else {
+        merged[item.messageId] = item;
+      }
+    }
+    final sorted = merged.values.toList()
+      ..sort((a, b) {
+        final byTime = a.createdAt.compareTo(b.createdAt);
+        if (byTime != 0) return byTime;
+        return a.messageId.compareTo(b.messageId);
+      });
+    return sorted;
+  }
+
   Future<void> _load({bool older = false}) async {
     if (older && (_loadingOlder || _anchoring || !_hasMore)) return;
-    final before = older && _scroll.hasClients ? _scroll.position.maxScrollExtent : null;
+    final requestGen = older ? _loadGen : ++_loadGen;
+    final beforeExtent = older && _scroll.hasClients
+        ? _scroll.position.maxScrollExtent
+        : null;
     if (older) setState(() => _loadingOlder = true);
     try {
       final page = await widget.api.messages(
         widget.token,
         widget.peer.user.id,
-        page: older ? _page + 1 : 1,
+        before: older ? _nextCursor : null,
       );
-      if (!mounted) return;
-      final chronological = page.messages.reversed.toList();
+      if (!mounted || requestGen != _loadGen) return;
+      final merged = _merge(page.messages);
       if (older) _anchoring = true;
       setState(() {
-        if (older) {
-          _history.insertAll(0, chronological);
-          _page = page.page;
-          _loadingOlder = false;
-        } else {
-          _history
-            ..clear()
-            ..addAll(chronological);
-          _page = 1;
-        }
-        _hasMore = page.page < page.totalPages;
+        _history
+          ..clear()
+          ..addAll(merged);
+        _nextCursor = page.nextCursor;
+        _hasMore = page.nextCursor != null;
         _loading = false;
+        _loadingOlder = false;
         _error = null;
       });
-      if (older && before != null) {
+      if (older && beforeExtent != null) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (_scroll.hasClients) {
-            final delta = _scroll.position.maxScrollExtent - before;
-            final next = (_scroll.position.pixels + delta).clamp(0.0, _scroll.position.maxScrollExtent);
+            final delta = _scroll.position.maxScrollExtent - beforeExtent;
+            final next = (_scroll.position.pixels + delta).clamp(
+              0.0,
+              _scroll.position.maxScrollExtent,
+            );
             _scroll.jumpTo(next);
           }
           _anchoring = false;
@@ -187,7 +218,7 @@ class _ThreadScreenState extends State<ThreadScreen> {
         }
       }
     } on ChatException catch (error) {
-      if (!mounted) return;
+      if (!mounted || requestGen != _loadGen) return;
       setState(() {
         _loading = false;
         _loadingOlder = false;
@@ -199,7 +230,7 @@ class _ThreadScreenState extends State<ThreadScreen> {
 
   Future<void> _send() async {
     final text = _composer.text.trim();
-    if (text.isEmpty || _sending) return;
+    if (text.isEmpty || _sending || _loading) return;
     final messageId = _messageId();
     final optimistic = ThreadMessage(
       chatroomId: widget.peer.chatroomId,
@@ -236,9 +267,12 @@ class _ThreadScreenState extends State<ThreadScreen> {
       _upsert(saved);
     } on ChatException catch (error) {
       if (!mounted) return;
-      setState(() => _history.removeWhere((item) => item.messageId == messageId));
+      setState(
+        () => _history.removeWhere((item) => item.messageId == messageId),
+      );
       _composer.text = text;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error.message)));
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -271,8 +305,6 @@ class _ThreadScreenState extends State<ThreadScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final canSend = !_sending && _composer.text.trim().isNotEmpty;
-
     return Scaffold(
       backgroundColor: AppColors.inbox,
       resizeToAvoidBottomInset: true,
@@ -287,7 +319,10 @@ class _ThreadScreenState extends State<ThreadScreen> {
                   IconButton(
                     tooltip: 'Back',
                     onPressed: widget.onBack,
-                    icon: const Icon(Icons.arrow_back, color: AppColors.chatInk),
+                    icon: const Icon(
+                      Icons.arrow_back,
+                      color: AppColors.chatInk,
+                    ),
                   ),
                   Expanded(
                     child: Column(
@@ -307,7 +342,11 @@ class _ThreadScreenState extends State<ThreadScreen> {
                         if (_online)
                           const Text(
                             'Online',
-                            style: TextStyle(color: AppColors.online, fontSize: 13, fontWeight: FontWeight.w600),
+                            style: TextStyle(
+                              color: AppColors.online,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                       ],
                     ),
@@ -333,7 +372,10 @@ class _ThreadScreenState extends State<ThreadScreen> {
                         hintText: 'Type a message',
                         filled: true,
                         fillColor: Colors.white,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.all(Radius.circular(24)),
                           borderSide: BorderSide.none,
@@ -350,20 +392,33 @@ class _ThreadScreenState extends State<ThreadScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Tooltip(
-                    message: 'Send',
-                    child: FilledButton(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: canSend ? AppColors.send : AppColors.sendDisabled,
-                        disabledBackgroundColor: AppColors.sendDisabled,
-                        foregroundColor: Colors.white,
-                        minimumSize: const Size(48, 48),
-                        padding: EdgeInsets.zero,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
-                      onPressed: canSend ? _send : null,
-                      child: const Icon(Icons.send),
-                    ),
+                  ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: _composer,
+                    builder: (context, value, _) {
+                      final canSend =
+                          !_sending &&
+                          !_loading &&
+                          value.text.trim().isNotEmpty;
+                      return Tooltip(
+                        message: 'Send',
+                        child: FilledButton(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: canSend
+                                ? AppColors.send
+                                : AppColors.sendDisabled,
+                            disabledBackgroundColor: AppColors.sendDisabled,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size(48, 48),
+                            padding: EdgeInsets.zero,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          onPressed: canSend ? _send : null,
+                          child: const Icon(Icons.send),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),
@@ -376,7 +431,9 @@ class _ThreadScreenState extends State<ThreadScreen> {
 
   Widget _historyBody() {
     if (_loading && _history.isEmpty) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.chatInk));
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.chatInk),
+      );
     }
     if (_error != null && _history.isEmpty) {
       return Center(
@@ -385,9 +442,16 @@ class _ThreadScreenState extends State<ThreadScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.danger)),
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppColors.danger),
+              ),
               const SizedBox(height: 12),
-              TextButton(onPressed: () => _load(), child: const Text('Try again')),
+              TextButton(
+                onPressed: () => _load(),
+                child: const Text('Try again'),
+              ),
             ],
           ),
         ),
@@ -403,12 +467,20 @@ class _ThreadScreenState extends State<ThreadScreen> {
               Text(
                 'No messages yet.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.chatMuted, fontSize: 15, height: 1.4),
+                style: TextStyle(
+                  color: AppColors.chatMuted,
+                  fontSize: 15,
+                  height: 1.4,
+                ),
               ),
               Text(
                 'Send a message to start the conversation!',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.chatMuted, fontSize: 15, height: 1.4),
+                style: TextStyle(
+                  color: AppColors.chatMuted,
+                  fontSize: 15,
+                  height: 1.4,
+                ),
               ),
             ],
           ),

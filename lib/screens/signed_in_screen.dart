@@ -29,6 +29,7 @@ class SignedInScreen extends StatefulWidget {
     required this.chat,
     required this.loggingOut,
     required this.onLogout,
+    required this.onDeleteAccount,
   });
 
   final SessionUser user;
@@ -37,6 +38,7 @@ class SignedInScreen extends StatefulWidget {
   final ChatConnection chat;
   final bool loggingOut;
   final VoidCallback onLogout;
+  final VoidCallback onDeleteAccount;
 
   @override
   State<SignedInScreen> createState() => _SignedInScreenState();
@@ -48,8 +50,10 @@ class _SignedInScreenState extends State<SignedInScreen> {
   late final StreamSubscription<PresenceUpdate> _presence;
 
   var _loading = true;
+  var _loadingMore = false;
   var _loadGen = 0;
   String? _error;
+  String? _nextCursor;
   List<Conversation> _conversations = const [];
   final Set<String> _countedMessageIds = {};
   Future<void> _reads = Future<void>.value();
@@ -69,39 +73,61 @@ class _SignedInScreenState extends State<SignedInScreen> {
     super.dispose();
   }
 
-  Future<void> _load() async {
-    final gen = ++_loadGen;
+  Future<void> _load({bool older = false}) async {
+    if (older && (_loadingMore || _nextCursor == null)) return;
+    final requestGen = older ? _loadGen : ++_loadGen;
+    if (older) _loadingMore = true;
     try {
-      final conversations = await widget.api.conversations(widget.token);
-      if (!mounted || gen != _loadGen) return;
+      final page = await widget.api.conversations(
+        widget.token,
+        before: older ? _nextCursor : null,
+      );
+      if (!mounted || requestGen != _loadGen) return;
       final openId = _stack.last.chat?.user.id;
       setState(() {
-        _conversations = [
-          for (final conversation in conversations)
-            conversation.user.id == openId
-                ? conversation.copyWith(unreadCount: 0)
-                : conversation,
-        ];
+        if (older) {
+          final seen = _conversations
+              .map((conversation) => conversation.user.id)
+              .toSet();
+          _conversations = [
+            ..._conversations,
+            for (final conversation in page.conversations)
+              if (seen.add(conversation.user.id)) conversation,
+          ];
+        } else {
+          _conversations = [
+            for (final conversation in page.conversations)
+              conversation.user.id == openId
+                  ? conversation.copyWith(unreadCount: 0)
+                  : conversation,
+          ];
+        }
+        _nextCursor = page.nextCursor;
         _loading = false;
         _error = null;
       });
       _watch();
     } on ChatException catch (error) {
-      if (!mounted || gen != _loadGen) return;
+      if (!mounted || requestGen != _loadGen || older) return;
       setState(() {
         _loading = false;
         _error = error.message;
       });
+    } finally {
+      _loadingMore = false;
     }
   }
 
   void _watch() {
-    final ids = _conversations
-        .map((conversation) => conversation.user.id)
-        .toSet();
-    final open = _stack.last.chat;
-    if (open != null) ids.add(open.user.id);
-    widget.chat.watchPresence(ids.take(50).toList());
+    final ids = <String>[];
+    final open = _stack.last.chat?.user.id;
+    if (open != null) ids.add(open);
+    for (final conversation in _conversations) {
+      if (ids.length >= 50) break;
+      if (ids.contains(conversation.user.id)) continue;
+      ids.add(conversation.user.id);
+    }
+    widget.chat.watchPresence(ids);
   }
 
   void _onMessage(ThreadMessage message) {
@@ -196,6 +222,29 @@ class _SignedInScreenState extends State<SignedInScreen> {
     _reads = widget.chat.markRead(user.id);
   }
 
+  Future<void> _confirmDelete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete account?'),
+        content: const Text(
+          'This permanently deletes your account and messages.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) widget.onDeleteAccount();
+  }
+
   void _back() {
     if (_stack.length <= 1) return;
     final leftThread = _stack.last.kind == _Kind.thread;
@@ -221,8 +270,10 @@ class _SignedInScreenState extends State<SignedInScreen> {
         error: _error,
         loggingOut: widget.loggingOut,
         onLogout: widget.onLogout,
+        onDeleteAccount: _confirmDelete,
         onNewChat: () => setState(() => _stack.add(_Dest.search())),
         onOpen: _openConversation,
+        onLoadMore: _nextCursor == null ? null : () => _load(older: true),
         onRetry: () {
           _load();
         },

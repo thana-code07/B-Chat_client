@@ -32,7 +32,9 @@ class AuthSession {
   factory AuthSession.fromJson(Map<String, dynamic> json) {
     return AuthSession(
       accessToken: json['accessToken'] as String,
-      user: SessionUser.fromJson(Map<String, dynamic>.from(json['user'] as Map)),
+      user: SessionUser.fromJson(
+        Map<String, dynamic>.from(json['user'] as Map),
+      ),
     );
   }
 }
@@ -67,17 +69,24 @@ class AuthApi {
         },
       ),
     );
-    return AuthSession.fromJson(Map<String, dynamic>.from(response.data as Map));
+    return AuthSession.fromJson(
+      Map<String, dynamic>.from(response.data as Map),
+    );
   }
 
-  Future<AuthSession> login({required String username, required String password}) async {
+  Future<AuthSession> login({
+    required String username,
+    required String password,
+  }) async {
     final response = await _send(
       () => _dio.post(
         '/api/auth/login',
         data: {'username': username.trim(), 'password': password},
       ),
     );
-    return AuthSession.fromJson(Map<String, dynamic>.from(response.data as Map));
+    return AuthSession.fromJson(
+      Map<String, dynamic>.from(response.data as Map),
+    );
   }
 
   Future<SessionUser> me(String token) async {
@@ -92,11 +101,19 @@ class AuthApi {
     await _send(() => _dio.post('/api/auth/logout', options: _bearer(token)));
   }
 
+  Future<void> deleteAccount(String token) async {
+    await _send(
+      () => _dio.delete('/api/auth/account', options: _bearer(token)),
+    );
+  }
+
   Options _bearer(String token) {
     return Options(headers: {'Authorization': 'Bearer $token'});
   }
 
-  Future<Response<dynamic>> _send(Future<Response<dynamic>> Function() request) async {
+  Future<Response<dynamic>> _send(
+    Future<Response<dynamic>> Function() request,
+  ) async {
     try {
       return await request();
     } on DioException catch (error) {
@@ -108,7 +125,9 @@ class AuthApi {
     final data = error.response?.data;
     if (data is Map) {
       final body = data['error'];
-      if (body is Map && body['message'] is String && (body['message'] as String).isNotEmpty) {
+      if (body is Map &&
+          body['message'] is String &&
+          (body['message'] as String).isNotEmpty) {
         return body['message'] as String;
       }
     }

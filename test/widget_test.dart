@@ -32,9 +32,9 @@ class _EmptyThreadApi extends ChatApi {
   Future<MessagePage> messages(
     String token,
     String userId, {
-    int page = 1,
+    String? before,
   }) async {
-    return const MessagePage(messages: [], page: 1, totalPages: 0);
+    return const MessagePage(messages: []);
   }
 }
 
@@ -42,7 +42,9 @@ class _EmptyChatApi extends ChatApi {
   _EmptyChatApi() : super(dio: Dio(BaseOptions(baseUrl: 'http://localhost')));
 
   @override
-  Future<List<Conversation>> conversations(String token) async => [];
+  Future<ConversationPage> conversations(String token, {String? before}) async {
+    return const ConversationPage(conversations: []);
+  }
 
   @override
   Future<List<ChatUser>> searchUsers(String token, String query) async {

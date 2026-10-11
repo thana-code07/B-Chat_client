@@ -20,6 +20,7 @@ class ChatConnection {
   final _presence = StreamController<PresenceUpdate>.broadcast();
 
   SocketPhase phase = SocketPhase.offline;
+  void Function()? onSessionExpired;
   socket_io.Socket? _socket;
   List<String> _watchIds = const [];
 
@@ -36,7 +37,9 @@ class ChatConnection {
     await _closeSocket();
     _setPhase(SocketPhase.connecting);
 
-    final base = apiBaseUrl.endsWith('/') ? apiBaseUrl.substring(0, apiBaseUrl.length - 1) : apiBaseUrl;
+    final base = apiBaseUrl.endsWith('/')
+        ? apiBaseUrl.substring(0, apiBaseUrl.length - 1)
+        : apiBaseUrl;
     final socket = socket_io.io(
       base,
       socket_io.OptionBuilder()
@@ -47,7 +50,6 @@ class ChatConnection {
           .setReconnectionDelay(1000)
           .setReconnectionDelayMax(5000)
           .setAuth({'token': token})
-          .setQuery({'token': token})
           .build(),
     );
     _socket = socket;
@@ -64,6 +66,10 @@ class ChatConnection {
     socket.onConnectError((_) {
       if (!identical(_socket, socket)) return;
       _setPhase(SocketPhase.offline);
+    });
+    socket.on('auth:expired', (_) {
+      if (!identical(_socket, socket)) return;
+      onSessionExpired?.call();
     });
     socket.on('message:new', (data) {
       if (!identical(_socket, socket)) return;
@@ -125,18 +131,23 @@ class ChatConnection {
   void _emitWatch() {
     final socket = _socket;
     if (socket == null || !socket.connected) return;
-    socket.emitWithAck('presence:watch', {
-      'userIds': _watchIds,
-    }, ack: (data) {
-      if (data is! Map || data['users'] is! List) return;
-      for (final item in data['users'] as List) {
-        final update = _readPresence(item);
-        if (update != null && !_presence.isClosed) _presence.add(update);
-      }
-    });
+    socket.emitWithAck(
+      'presence:watch',
+      {'userIds': _watchIds},
+      ack: (data) {
+        if (data is! Map || data['users'] is! List) return;
+        for (final item in data['users'] as List) {
+          final update = _readPresence(item);
+          if (update != null && !_presence.isClosed) _presence.add(update);
+        }
+      },
+    );
   }
 
-  Future<Map<String, dynamic>> _ack(String event, Map<String, dynamic> payload) {
+  Future<Map<String, dynamic>> _ack(
+    String event,
+    Map<String, dynamic> payload,
+  ) {
     final socket = _socket;
     if (socket == null || !socket.connected) {
       throw ChatException('Cannot reach the server. Check that it is running.');
@@ -145,32 +156,46 @@ class ChatConnection {
     final completer = Completer<Map<String, dynamic>>();
     final timer = Timer(const Duration(seconds: 10), () {
       if (!completer.isCompleted) {
-        completer.completeError(ChatException('Cannot reach the server. Check that it is running.'));
-      }
-    });
-    socket.emitWithAck(event, payload, ack: (data) {
-      timer.cancel();
-      if (completer.isCompleted) return;
-      if (data is Map && data['error'] is Map) {
-        final message = (data['error'] as Map)['message'];
         completer.completeError(
-          ChatException(message is String && message.isNotEmpty ? message : 'Something went wrong. Try again.'),
+          ChatException('Cannot reach the server. Check that it is running.'),
         );
-        return;
       }
-      if (data is Map) {
-        completer.complete(Map<String, dynamic>.from(data));
-        return;
-      }
-      completer.completeError(ChatException('Something went wrong. Try again.'));
     });
+    socket.emitWithAck(
+      event,
+      payload,
+      ack: (data) {
+        timer.cancel();
+        if (completer.isCompleted) return;
+        if (data is Map && data['error'] is Map) {
+          final message = (data['error'] as Map)['message'];
+          completer.completeError(
+            ChatException(
+              message is String && message.isNotEmpty
+                  ? message
+                  : 'Something went wrong. Try again.',
+            ),
+          );
+          return;
+        }
+        if (data is Map) {
+          completer.complete(Map<String, dynamic>.from(data));
+          return;
+        }
+        completer.completeError(
+          ChatException('Something went wrong. Try again.'),
+        );
+      },
+    );
     return completer.future;
   }
 
   ThreadMessage? _readMessage(dynamic data) {
     if (data is! Map || data['message'] is! Map) return null;
     try {
-      return ThreadMessage.fromJson(Map<String, dynamic>.from(data['message'] as Map));
+      return ThreadMessage.fromJson(
+        Map<String, dynamic>.from(data['message'] as Map),
+      );
     } catch (_) {
       return null;
     }

@@ -47,7 +47,13 @@ class _BChatAppState extends State<BChatApp> {
   @override
   void initState() {
     super.initState();
+    _chat.onSessionExpired = _onSessionExpired;
     _restore();
+  }
+
+  void _onSessionExpired() {
+    if (_loggingOut) return;
+    _logout();
   }
 
   @override
@@ -163,6 +169,28 @@ class _BChatAppState extends State<BChatApp> {
     }
   }
 
+  Future<void> _deleteAccount() async {
+    if (_loggingOut) return;
+    setState(() => _loggingOut = true);
+    try {
+      final token = await _store.readToken();
+      if (token != null && token.isNotEmpty) {
+        try {
+          await _api.deleteAccount(token);
+        } catch (_) {
+          // Local sign-out still continues if the server is unreachable.
+        }
+      }
+      await _chat.disconnect();
+      await _store.clear();
+    } finally {
+      if (mounted) {
+        setState(() => _loggingOut = false);
+        _showWelcome();
+      }
+    }
+  }
+
   Future<void> _logout() async {
     if (_loggingOut) return;
     setState(() => _loggingOut = true);
@@ -214,6 +242,7 @@ class _BChatAppState extends State<BChatApp> {
         chat: _chat,
         loggingOut: _loggingOut,
         onLogout: _logout,
+        onDeleteAccount: _deleteAccount,
       );
     }
 

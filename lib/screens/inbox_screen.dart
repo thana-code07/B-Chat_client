@@ -13,8 +13,10 @@ class InboxScreen extends StatelessWidget {
     required this.error,
     required this.loggingOut,
     required this.onLogout,
+    this.onDeleteAccount,
     required this.onNewChat,
     required this.onOpen,
+    this.onLoadMore,
     required this.onRetry,
   });
 
@@ -23,8 +25,10 @@ class InboxScreen extends StatelessWidget {
   final String? error;
   final bool loggingOut;
   final VoidCallback onLogout;
+  final VoidCallback? onDeleteAccount;
   final VoidCallback onNewChat;
   final ValueChanged<Conversation> onOpen;
+  final VoidCallback? onLoadMore;
   final VoidCallback onRetry;
 
   @override
@@ -61,6 +65,15 @@ class InboxScreen extends StatelessWidget {
                       color: AppColors.chatInk,
                     ),
                   ),
+                  if (onDeleteAccount != null)
+                    IconButton(
+                      tooltip: 'Delete account',
+                      onPressed: loggingOut ? null : onDeleteAccount,
+                      icon: const Icon(
+                        Icons.delete_outline,
+                        color: AppColors.chatInk,
+                      ),
+                    ),
                   IconButton(
                     tooltip: 'Logout',
                     onPressed: loggingOut ? null : onLogout,
@@ -168,90 +181,106 @@ class InboxScreen extends StatelessWidget {
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 12),
-      itemCount: conversations.length,
-      itemBuilder: (context, index) {
-        final conversation = conversations[index];
-        final time = formatChatTime(conversation.lastMessage.createdAt);
-        final unread = conversation.unreadCount;
-        final unreadLabel = unread == 1
-            ? ', 1 unread message'
-            : unread > 1
-            ? ', $unread unread messages'
-            : '';
-        return Semantics(
-          button: true,
-          label:
-              '${conversation.user.username}, ${conversation.lastMessage.message}, $time$unreadLabel',
-          excludeSemantics: true,
-          child: InkWell(
-            onTap: () => onOpen(conversation),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  LetterAvatar(
-                    username: conversation.user.username,
-                    background: AppColors.chatAvatar,
-                    foreground: Colors.white,
-                    size: 44,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        final loadMore = onLoadMore;
+        if (loadMore == null || notification.metrics.axis != Axis.vertical)
+          return false;
+        final metrics = notification.metrics;
+        if (metrics.maxScrollExtent > 0 &&
+            metrics.pixels >= metrics.maxScrollExtent - 72) {
+          loadMore();
+        }
+        return false;
+      },
+      child: ListView.builder(
+        padding: const EdgeInsets.only(bottom: 12),
+        itemCount: conversations.length,
+        itemBuilder: (context, index) {
+          final conversation = conversations[index];
+          final time = formatChatTime(conversation.lastMessage.createdAt);
+          final unread = conversation.unreadCount;
+          final unreadLabel = unread == 1
+              ? ', 1 unread message'
+              : unread > 1
+              ? ', $unread unread messages'
+              : '';
+          return Semantics(
+            button: true,
+            label:
+                '${conversation.user.username}, ${conversation.lastMessage.message}, $time$unreadLabel',
+            excludeSemantics: true,
+            child: InkWell(
+              onTap: () => onOpen(conversation),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    LetterAvatar(
+                      username: conversation.user.username,
+                      background: AppColors.chatAvatar,
+                      foreground: Colors.white,
+                      size: 44,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            conversation.user.username,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppColors.chatInk,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            conversation.lastMessage.message,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppColors.chatMuted,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Text(
-                          conversation.user.username,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppColors.chatInk,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          conversation.lastMessage.message,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                          time,
                           style: const TextStyle(
                             color: AppColors.chatMuted,
-                            fontSize: 14,
+                            fontSize: 12,
                           ),
                         ),
+                        if (unread > 0) ...[
+                          const SizedBox(height: 6),
+                          _UnreadBadge(
+                            key: ValueKey('unread-${conversation.user.id}'),
+                            count: unread,
+                          ),
+                        ],
                       ],
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        time,
-                        style: const TextStyle(
-                          color: AppColors.chatMuted,
-                          fontSize: 12,
-                        ),
-                      ),
-                      if (unread > 0) ...[
-                        const SizedBox(height: 6),
-                        _UnreadBadge(
-                          key: ValueKey('unread-${conversation.user.id}'),
-                          count: unread,
-                        ),
-                      ],
-                    ],
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }

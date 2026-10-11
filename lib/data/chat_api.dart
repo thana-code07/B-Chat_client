@@ -145,16 +145,24 @@ class OpenChat {
   final bool isOnline;
 }
 
+class ConversationPage {
+  const ConversationPage({required this.conversations, this.nextCursor});
+
+  final List<Conversation> conversations;
+  final String? nextCursor;
+}
+
 class MessagePage {
-  const MessagePage({
-    required this.messages,
-    required this.page,
-    required this.totalPages,
-  });
+  const MessagePage({required this.messages, this.nextCursor});
 
   final List<ThreadMessage> messages;
-  final int page;
-  final int totalPages;
+  final String? nextCursor;
+}
+
+const statusRank = {'sent': 0, 'delivered': 1, 'read': 2};
+
+bool statusMovesForward(String from, String to) {
+  return (statusRank[to] ?? -1) >= (statusRank[from] ?? -1);
 }
 
 class ChatApi {
@@ -172,17 +180,25 @@ class ChatApi {
 
   final Dio _dio;
 
-  Future<List<Conversation>> conversations(String token) async {
+  Future<ConversationPage> conversations(String token, {String? before}) async {
     final response = await _send(
-      () => _dio.get('/api/conversations', options: _bearer(token)),
+      () => _dio.get(
+        '/api/conversations',
+        queryParameters: {if (before != null) 'before': before},
+        options: _bearer(token),
+      ),
     );
     final body = Map<String, dynamic>.from(response.data as Map);
-    return (body['conversations'] as List)
-        .map(
-          (item) =>
-              Conversation.fromJson(Map<String, dynamic>.from(item as Map)),
-        )
-        .toList();
+    final cursor = body['nextCursor'];
+    return ConversationPage(
+      conversations: (body['conversations'] as List)
+          .map(
+            (item) =>
+                Conversation.fromJson(Map<String, dynamic>.from(item as Map)),
+          )
+          .toList(),
+      nextCursor: cursor is String && cursor.isNotEmpty ? cursor : null,
+    );
   }
 
   Future<List<ChatUser>> searchUsers(String token, String query) async {
@@ -217,17 +233,17 @@ class ChatApi {
   Future<MessagePage> messages(
     String token,
     String userId, {
-    int page = 1,
+    String? before,
   }) async {
     final response = await _send(
       () => _dio.get(
         '/api/conversations/with/$userId/messages',
-        queryParameters: {'page': page, 'pageSize': 20},
+        queryParameters: {'limit': 30, if (before != null) 'before': before},
         options: _bearer(token),
       ),
     );
     final body = Map<String, dynamic>.from(response.data as Map);
-    final pagination = Map<String, dynamic>.from(body['pagination'] as Map);
+    final cursor = body['nextCursor'];
     return MessagePage(
       messages: (body['data'] as List)
           .map(
@@ -235,8 +251,7 @@ class ChatApi {
                 ThreadMessage.fromJson(Map<String, dynamic>.from(item as Map)),
           )
           .toList(),
-      page: (pagination['page'] as num).toInt(),
-      totalPages: (pagination['totalPages'] as num).toInt(),
+      nextCursor: cursor is String && cursor.isNotEmpty ? cursor : null,
     );
   }
 

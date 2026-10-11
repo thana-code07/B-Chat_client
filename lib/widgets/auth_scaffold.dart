@@ -3,12 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 
 class AuthScaffold extends StatelessWidget {
-  const AuthScaffold({
-    super.key,
-    required this.child,
-    this.onBack,
-    this.title,
-  });
+  const AuthScaffold({super.key, required this.child, this.onBack, this.title});
 
   final Widget child;
   final VoidCallback? onBack;

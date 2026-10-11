@@ -17,7 +17,8 @@ class SecureSessionStore implements SessionStore {
   Future<String?> readToken() => _storage.read(key: _key);
 
   @override
-  Future<void> writeToken(String token) => _storage.write(key: _key, value: token);
+  Future<void> writeToken(String token) =>
+      _storage.write(key: _key, value: token);
 
   @override
   Future<void> clear() => _storage.delete(key: _key);
